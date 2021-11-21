@@ -1,9 +1,12 @@
-package ru.sberschool.hystrix
 
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.KotlinModule
 import feign.Request
 import feign.httpclient.ApacheHttpClient
 import feign.hystrix.HystrixFeign
 import feign.jackson.JacksonDecoder
+import org.junit.Assert.assertEquals
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -12,15 +15,20 @@ import org.mockserver.integration.ClientAndServer
 import org.mockserver.model.HttpRequest
 import org.mockserver.model.HttpResponse
 import java.util.concurrent.TimeUnit
-import kotlin.test.assertEquals
+
 
 class SlowlyApiTest {
-    val client = HystrixFeign.builder()
+
+    private val mapper = ObjectMapper()
+        .registerModule(KotlinModule())
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+
+    private val client = HystrixFeign.builder()
         .client(ApacheHttpClient())
-        .decoder(JacksonDecoder())
-        // для удобства тестирования задаем таймауты на 1 секунду
+        .decoder(JacksonDecoder(mapper))
         .options(Request.Options(1, TimeUnit.SECONDS, 1, TimeUnit.SECONDS, true))
-        .target(SlowlyApi::class.java, "http://127.0.0.1:18080", FallbackSlowlyApi())
+        .target(SlowlyApi::class.java, "https://pokeapi.co/api/v2/", FallbackSlowlyApi())
+
     lateinit var mockServer: ClientAndServer
 
     @BeforeEach
@@ -35,22 +43,80 @@ class SlowlyApiTest {
     }
 
     @Test
-    fun `getSomething() should return predefined data`() {
+    fun `getFirstFighter should return no name`() {
         // given
         MockServerClient("127.0.0.1", 18080)
             .`when`(
                 // задаем матчер для нашего запроса
                 HttpRequest.request()
                     .withMethod("GET")
-                    .withPath("/")
+                    .withPath("/fighter/?limit=1")
             )
             .respond(
-                // наш запрос попадает на таймаут
                 HttpResponse.response()
                     .withStatusCode(400)
-                    .withDelay(TimeUnit.SECONDS, 30) //
+                    .withDelay(TimeUnit.SECONDS, 30)
             )
         // expect
-        assertEquals("predefined data", client.getSomething().data)
+        assertEquals("rock", client.getFirstFighter().results!![0].name)
+
+    }
+
+    @Test
+    fun `getFirstSkils should return stench`() {
+        // given
+        MockServerClient("127.0.0.1", 18080)
+            .`when`(
+                // задаем матчер для нашего запроса
+                HttpRequest.request()
+                    .withMethod("GET")
+                    .withPath("/skills/?limit=1")
+            )
+            .respond(
+                HttpResponse.response()
+                    .withStatusCode(201)
+            )
+        // expect
+        assertEquals("super punch", client.getFirstSkills().results!![0].name)
+
+    }
+
+
+    @Test
+    fun `getFirstPower should return canalave-city`() {
+        // given
+        MockServerClient("127.0.0.1", 18080)
+            .`when`(
+                // задаем матчер для нашего запроса
+                HttpRequest.request()
+                    .withMethod("GET")
+                    .withPath("/location/?limit=1")
+            )
+            .respond(
+                HttpResponse.response()
+                    .withStatusCode(201)
+            )
+        // expect
+        assertEquals("10000", client.getFirstPower().results!![0].name)
+
+    }
+
+    @Test
+    fun `getFirstGame should return generation-i`() {
+        // given
+        MockServerClient("127.0.0.1", 18080)
+            .`when`(
+                // задаем матчер для нашего запроса
+                HttpRequest.request()
+                    .withMethod("GET")
+                    .withPath("/game/?limit=1")
+            )
+            .respond(
+                HttpResponse.response()
+                    .withStatusCode(201)
+            )
+        // expect
+        assertEquals("first-game", client.getFirstGame().results!![0].name)
+
     }
 }
