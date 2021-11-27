@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*
 @RestController
 class RetailEndpoint {
 
-    @Value("\${app.client.name:ivan}")
+    @Value("\${app.client.name:alex}")
     val clientName = "alex"
 
     @Autowired

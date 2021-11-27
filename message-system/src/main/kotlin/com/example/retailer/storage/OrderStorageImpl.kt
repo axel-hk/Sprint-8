@@ -8,61 +8,27 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 
 @Component
-class OrderStorageImpl : OrderStorage {
-
+class OrderStorageImpl: OrderStorage {
     @Autowired
-    lateinit var repository: OrderRepository
+    lateinit var orderRepository: OrderRepository
+    @Autowired
+    lateinit var orderInformRepository: OrderInformRepository
+
 
     override fun createOrder(draftOrder: Order): PlaceOrderData {
-
-        val result = repository.save(draftOrder)
-
-        val orderInfo = OrderInfo(
-            result.orderId,
-            OrderStatus.SENT,
-            result.orderId
-        )
-
-        return PlaceOrderData(result, orderInfo)
+        val order = orderRepository.save(draftOrder)
+        val orderInfo = orderInformRepository
+            .save(OrderInfo(order.id!!, OrderStatus.SENT, "signature"))
+        return PlaceOrderData(order, orderInfo)
     }
 
     override fun updateOrder(order: OrderInfo): Boolean {
-        val orderToUpdateOptional = repository.findById(order.signature)
-
-        return if (orderToUpdateOptional.isPresent) {
-            val orderToUpdate = orderToUpdateOptional.get()
-
-            val updatedOrder = Order(
-                order.orderId,
-                orderToUpdate.address,
-                orderToUpdate.recipient,
-                orderToUpdate.items
-            )
-
-            updatedOrder.orderId = orderToUpdate.orderId
-            repository.save(updatedOrder)
+        return if (orderInformRepository.findById(order.orderId).isPresent) {
+            orderInformRepository.save(order)
             true
-        } else {
-            false
         }
-
+        else false
     }
 
-    override fun getOrderInfo(id: String): OrderInfo? {
-        val order = repository.findByIdOrNull(id)
-
-        lateinit var status: OrderStatus
-        if (order != null) {
-            val key = order.id!!
-            status = when {
-                key == "" -> OrderStatus.SENT
-                key.contains("CREATED") -> OrderStatus.CREATED
-                key.contains("DELIVERED") -> OrderStatus.DELIVERED
-                else -> OrderStatus.ERROR
-            }
-        } else {
-            return null
-        }
-        return OrderInfo(id, status, order.orderId)
-    }
+    override fun getOrderInfo(id: String): OrderInfo? = orderInformRepository.findByIdOrNull(id)
 }
